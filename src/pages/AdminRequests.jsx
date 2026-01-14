@@ -1,43 +1,73 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 
-const loadUsers = () => {
-  try {
-    const stored = JSON.parse(localStorage.getItem("dknUsers"));
-    return Array.isArray(stored) ? stored : [];
-  } catch {
-    return [];
-  }
-};
-
 export default function AdminRequests() {
-  const [users, setUsers] = useState(() => loadUsers());
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const [users, setUsers] = useState([]);
+  const [error, setError] = useState("");
 
   const pending = useMemo(
     () => users.filter((entry) => entry.status === "Pending"),
     [users]
   );
 
-  const persist = (next) => {
-    setUsers(next);
-    localStorage.setItem("dknUsers", JSON.stringify(next));
+  const loadPending = async () => {
+    setError("");
+    try {
+      const res = await fetch("/api/admin/requests", {
+        headers: { "x-user-role": user?.role || "" },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Failed to load requests.");
+        return;
+      }
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError("Failed to load requests.");
+    }
   };
 
-  const approveUser = (username) => {
-    const next = users.map((entry) => {
-      if (entry.username !== username) return entry;
-      return {
-        ...entry,
-        role: entry.requestedRole || entry.role,
-        status: "Approved",
-      };
-    });
-    persist(next);
+  useEffect(() => {
+    loadPending();
+  }, []);
+
+  const approveUser = async (username) => {
+    setError("");
+    try {
+      const res = await fetch("/api/admin/requests/approve", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, role: user?.role || "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Failed to approve user.");
+        return;
+      }
+      loadPending();
+    } catch (err) {
+      setError("Failed to approve user.");
+    }
   };
 
-  const rejectUser = (username) => {
-    const next = users.filter((entry) => entry.username !== username);
-    persist(next);
+  const rejectUser = async (username) => {
+    setError("");
+    try {
+      const res = await fetch("/api/admin/requests/reject", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, role: user?.role || "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Failed to reject user.");
+        return;
+      }
+      loadPending();
+    } catch (err) {
+      setError("Failed to reject user.");
+    }
   };
 
   return (
@@ -84,6 +114,7 @@ export default function AdminRequests() {
                   </div>
                 </div>
               ))}
+              {error && <p className="muted">{error}</p>}
               {pending.length === 0 && (
                 <div className="admin-request-empty">
                   No new user requests.

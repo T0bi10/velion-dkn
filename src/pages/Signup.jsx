@@ -1,15 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-const loadUsers = () => {
-  try {
-    const stored = JSON.parse(localStorage.getItem("dknUsers"));
-    return Array.isArray(stored) ? stored : [];
-  } catch {
-    return [];
-  }
-};
-
 const roleOptions = [
   "Consultant",
   "KnowledgeChampion",
@@ -26,7 +17,7 @@ export default function Signup() {
   const [requestedRole, setRequestedRole] = useState("Consultant");
   const [error, setError] = useState("");
 
-  const signup = () => {
+  const signup = async () => {
     setError("");
     const trimmedUser = username.trim();
     const trimmedPass = password.trim();
@@ -51,26 +42,26 @@ export default function Signup() {
       return;
     }
 
-    const users = loadUsers();
-    if (users.find((user) => user.username === trimmedUser)) {
-      setError("Username already exists.");
-      return;
+    try {
+      const res = await fetch("/api/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: trimmedUser,
+          password: trimmedPass,
+          region,
+          requestedRole,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Signup failed.");
+        return;
+      }
+      navigate("/login");
+    } catch (error) {
+      setError("Signup failed.");
     }
-
-    const updated = [
-      ...users,
-      {
-        username: trimmedUser,
-        password: trimmedPass,
-        role: "Consultant",
-        requestedRole,
-        region,
-        status: "Pending",
-      },
-    ];
-
-    localStorage.setItem("dknUsers", JSON.stringify(updated));
-    navigate("/login");
   };
 
   return (

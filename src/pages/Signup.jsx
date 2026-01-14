@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const roleOptions = [
   "Consultant",
   "KnowledgeChampion",
@@ -43,7 +45,7 @@ export default function Signup() {
     }
 
     try {
-      const res = await fetch("/api/signup", {
+      const res = await fetch(`${apiBase}/api/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

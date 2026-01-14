@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const formatTags = (tags) => {
   if (Array.isArray(tags)) return tags.join(", ");
   if (typeof tags === "string") return tags;
@@ -15,7 +17,7 @@ export default function Validate() {
   const [actionNotice, setActionNotice] = useState("");
 
   const loadPending = async () => {
-    const res = await fetch("/api/knowledge");
+    const res = await fetch(`${apiBase}/api/knowledge`);
     const data = await res.json();
     const queue = Array.isArray(data) ? data.filter((item) => ["Pending", "Pending Validation"].includes(item.status)) : [];
     setPending(queue);
@@ -36,7 +38,7 @@ export default function Validate() {
   const handleDecision = async (decision) => {
     if (!selectedItem) return;
 
-    await fetch(`/api/validate/${selectedItem.id}`, {
+    await fetch(`${apiBase}/api/validate/${selectedItem.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: user.role, validator: user.username, decision }),

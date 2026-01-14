@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const projectOptions = ["All", "Atlas", "Nova", "Orion", "Pulse"];
 const typeOptions = [
   "All",
@@ -63,7 +65,7 @@ export default function Search() {
   const [typeFilter, setTypeFilter] = useState("All");
 
   const loadData = async () => {
-    const res = await fetch("/api/knowledge");
+    const res = await fetch(`${apiBase}/api/knowledge`);
     const data = await res.json();
     setItems(Array.isArray(data) ? data : []);
   };

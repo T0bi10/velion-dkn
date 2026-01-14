@@ -1,0 +1,57 @@
+{
+  "users": [
+    {
+      "username": "consultant1",
+      "password": "1234",
+      "role": "Consultant",
+      "status": "Approved",
+      "createdAt": "2026-01-14T11:21:16.551Z"
+    },
+    {
+      "username": "champion1",
+      "password": "1234",
+      "role": "KnowledgeChampion",
+      "status": "Approved",
+      "createdAt": "2026-01-14T11:21:16.552Z"
+    },
+    {
+      "username": "admin1",
+      "password": "1234",
+      "role": "Admin",
+      "status": "Approved",
+      "createdAt": "2026-01-14T11:21:16.552Z"
+    }
+  ],
+  "knowledge": [
+    {
+      "id": "4c040bf9-c9c0-4e29-97ec-d8bd38fbd65b",
+      "title": "testing1",
+      "description": "testing submit",
+      "author": "consultant1",
+      "role": "Consultant",
+      "tags": [
+        "test"
+      ],
+      "project": "Pulse",
+      "region": "APAC",
+      "type": "Playbook",
+      "status": "Pending Validation",
+      "createdAt": "2026-01-14T11:21:22.948Z"
+    },
+    {
+      "id": "f6be43ba-8b76-4a7d-8da8-19a176414d87",
+      "title": "testing2",
+      "description": "testing submit for reject",
+      "author": "consultant1",
+      "role": "Consultant",
+      "tags": [
+        "test"
+      ],
+      "project": "Orion",
+      "region": "Global",
+      "type": "Template",
+      "status": "Pending Validation",
+      "createdAt": "2026-01-14T11:21:53.117Z"
+    }
+  ]
+}

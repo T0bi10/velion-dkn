@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const supportedTypes = [
   "Playbook",
   "Checklist",
@@ -51,6 +53,16 @@ export default function Submit() {
     return nextErrors;
   };
 
+  const readJson = async (res) => {
+    const text = await res.text();
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { error: text };
+    }
+  };
+
   const submitKnowledge = async () => {
     if (!canSubmit) {
       setErrors(["Only Consultants can submit knowledge."]);
@@ -72,7 +84,7 @@ export default function Submit() {
       .filter(Boolean);
 
     try {
-      const res = await fetch("/api/knowledge", {
+      const res = await fetch(`${apiBase}/api/knowledge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -86,8 +98,12 @@ export default function Submit() {
           role: user.role,
         }),
       });
-      const data = await res.json();
-      if (data.error) {
+      const data = await readJson(res);
+      if (!res.ok) {
+        setErrors([data?.error || `Request failed (${res.status}).`]);
+        return;
+      }
+      if (data?.error) {
         setErrors([data.error]);
         return;
       }
@@ -103,7 +119,7 @@ export default function Submit() {
       });
     } catch (err) {
       console.error(err);
-      setErrors(["Server error. Try again later."]);
+      setErrors(["Cannot reach the server. Make sure the backend is running."]);
     }
   };
 

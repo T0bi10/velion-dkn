@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const quickLinks = [
   {
     id: "submit",
@@ -71,7 +73,7 @@ export default function Home() {
 
   const loadDashboard = async () => {
     try {
-      const res = await fetch("/api/knowledge");
+      const res = await fetch(`${apiBase}/api/knowledge`);
       const data = await res.json();
       setKnowledge(Array.isArray(data) ? data : []);
       setLastUpdated(new Date().toLocaleTimeString("en-US", { hour12: false }));

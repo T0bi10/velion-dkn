@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const pointsLogic = {
   submit: 10,
   approved: 5,
@@ -38,7 +40,7 @@ export default function Leaderboard() {
   const user = JSON.parse(localStorage.getItem("user"));
 
   const loadLeaderboard = async () => {
-    const res = await fetch("/api/knowledge");
+    const res = await fetch(`${apiBase}/api/knowledge`);
     const data = await res.json();
     setItems(Array.isArray(data) ? data : []);
     const time = new Date().toLocaleTimeString("en-US", { hour12: false });

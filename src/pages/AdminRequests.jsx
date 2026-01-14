@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 export default function AdminRequests() {
   const user = JSON.parse(localStorage.getItem("user") || "null");
   const [users, setUsers] = useState([]);
@@ -14,7 +16,7 @@ export default function AdminRequests() {
   const loadPending = async () => {
     setError("");
     try {
-      const res = await fetch("/api/admin/requests", {
+      const res = await fetch(`${apiBase}/api/admin/requests`, {
         headers: { "x-user-role": user?.role || "" },
       });
       const data = await res.json();
@@ -35,7 +37,7 @@ export default function AdminRequests() {
   const approveUser = async (username) => {
     setError("");
     try {
-      const res = await fetch("/api/admin/requests/approve", {
+      const res = await fetch(`${apiBase}/api/admin/requests/approve`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, role: user?.role || "" }),
@@ -54,7 +56,7 @@ export default function AdminRequests() {
   const rejectUser = async (username) => {
     setError("");
     try {
-      const res = await fetch("/api/admin/requests/reject", {
+      const res = await fetch(`${apiBase}/api/admin/requests/reject`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, role: user?.role || "" }),

@@ -1,5 +1,8 @@
 import http from "node:http";
-import { MongoClient, ObjectId } from "mongodb";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import crypto from "node:crypto";
 
 const seedUsers = [
   { username: "consultant1", password: "1234", role: "Consultant" },
@@ -8,11 +11,35 @@ const seedUsers = [
 ];
 
 const port = Number(process.env.PORT) || 4000;
-const mongoUri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017";
-const mongoDbName = process.env.MONGODB_DB || "velionDB";
-const usersCollectionName = process.env.MONGODB_USERS_COLLECTION || "users";
-const knowledgeCollectionName =
-  process.env.MONGODB_KNOWLEDGE_COLLECTION || "knowledge_submissions";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dataFile = process.env.DATA_FILE || path.join(__dirname, "data.json");
+
+const defaultStore = () => ({
+  users: [],
+  knowledge: [],
+});
+
+const loadStore = async () => {
+  try {
+    const raw = await fs.readFile(dataFile, "utf-8");
+    const parsed = JSON.parse(raw);
+    return {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      knowledge: Array.isArray(parsed.knowledge) ? parsed.knowledge : [],
+    };
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return defaultStore();
+    }
+    throw error;
+  }
+};
+
+const saveStore = async (store) => {
+  const payload = JSON.stringify(store, null, 2);
+  await fs.writeFile(dataFile, payload, "utf-8");
+};
 
 const normalizeTags = (tags) => {
   if (Array.isArray(tags)) {
@@ -58,26 +85,30 @@ const sanitizeUser = (user) => {
   return rest;
 };
 
-const serializeKnowledge = (doc) => {
-  if (!doc) return null;
-  const { _id, ...rest } = doc;
-  return { id: _id.toString(), ...rest };
+const serializeKnowledge = (item) => {
+  if (!item) return null;
+  const { id, ...rest } = item;
+  return { id, ...rest };
 };
 
-const ensureSeedUsers = async (usersCollection) => {
-  const count = await usersCollection.countDocuments();
-  if (count > 0) return;
-  await usersCollection.insertMany(seedUsers);
+const ensureSeedUsers = (store) => {
+  if (store.users.length > 0) return;
+  store.users = seedUsers.map((user) => ({
+    ...user,
+    status: "Approved",
+    createdAt: new Date().toISOString(),
+  }));
+};
+
+const generateId = () => {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 };
 
 const startServer = async () => {
-  const client = new MongoClient(mongoUri);
-  await client.connect();
-  const db = client.db(mongoDbName);
-  const usersCollection = db.collection(usersCollectionName);
-  const knowledgeCollection = db.collection(knowledgeCollectionName);
-
-  await ensureSeedUsers(usersCollection);
+  const store = await loadStore();
+  ensureSeedUsers(store);
+  await saveStore(store);
 
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -108,7 +139,9 @@ const startServer = async () => {
       }
 
       try {
-        const match = await usersCollection.findOne({ username, password });
+        const match = store.users.find(
+          (user) => user.username === username && user.password === password
+        );
         if (!match) {
           sendJson(res, 401, { error: "Invalid username or password" });
           return;
@@ -157,7 +190,7 @@ const startServer = async () => {
       }
 
       try {
-        const existing = await usersCollection.findOne({ username });
+        const existing = store.users.find((user) => user.username === username);
         if (existing) {
           sendJson(res, 409, { error: "Username already exists." });
           return;
@@ -170,10 +203,11 @@ const startServer = async () => {
           requestedRole,
           region,
           status: "Pending",
-          createdAt: new Date(),
+          createdAt: new Date().toISOString(),
         };
 
-        await usersCollection.insertOne(user);
+        store.users.push(user);
+        await saveStore(store);
         sendJson(res, 201, { message: "Signup submitted", user: sanitizeUser(user) });
       } catch (error) {
         sendJson(res, 500, { error: "Signup failed" });
@@ -190,11 +224,9 @@ const startServer = async () => {
       }
 
       try {
-        const pendingUsers = await usersCollection
-          .find({ status: "Pending" })
-          .project({ password: 0 })
-          .sort({ createdAt: 1 })
-          .toArray();
+        const pendingUsers = store.users
+          .filter((user) => user.status === "Pending")
+          .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         sendJson(res, 200, pendingUsers.map(sanitizeUser));
       } catch (error) {
         sendJson(res, 500, { error: "Failed to load user requests" });
@@ -225,25 +257,16 @@ const startServer = async () => {
       }
 
       try {
-        const result = await usersCollection.findOneAndUpdate(
-          { username },
-          [
-            {
-              $set: {
-                role: { $ifNull: ["$requestedRole", "$role"] },
-                status: "Approved",
-              },
-            },
-          ],
-          { returnDocument: "after" }
-        );
-
-        if (!result.value) {
+        const target = store.users.find((user) => user.username === username);
+        if (!target) {
           sendJson(res, 404, { error: "User not found" });
           return;
         }
 
-        sendJson(res, 200, { message: "User approved", user: sanitizeUser(result.value) });
+        target.role = target.requestedRole || target.role;
+        target.status = "Approved";
+        await saveStore(store);
+        sendJson(res, 200, { message: "User approved", user: sanitizeUser(target) });
       } catch (error) {
         sendJson(res, 500, { error: "Failed to approve user" });
       }
@@ -274,12 +297,14 @@ const startServer = async () => {
       }
 
       try {
-        const result = await usersCollection.findOneAndDelete({ username });
-        if (!result.value) {
+        const index = store.users.findIndex((user) => user.username === username);
+        if (index === -1) {
           sendJson(res, 404, { error: "User not found" });
           return;
         }
-        sendJson(res, 200, { message: "User rejected", user: sanitizeUser(result.value) });
+        const [removed] = store.users.splice(index, 1);
+        await saveStore(store);
+        sendJson(res, 200, { message: "User rejected", user: sanitizeUser(removed) });
       } catch (error) {
         sendJson(res, 500, { error: "Failed to reject user" });
       }
@@ -289,10 +314,9 @@ const startServer = async () => {
 
     if (req.method === "GET" && req.url === "/api/knowledge") {
       try {
-        const items = await knowledgeCollection
-          .find({})
-          .sort({ createdAt: -1 })
-          .toArray();
+        const items = store.knowledge
+          .slice()
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         sendJson(res, 200, items.map(serializeKnowledge));
       } catch (error) {
         sendJson(res, 500, { error: "Failed to load knowledge" });
@@ -302,12 +326,9 @@ const startServer = async () => {
 
     if (req.method === "GET" && req.url === "/api/leaderboard") {
       try {
-        const entries = await knowledgeCollection
-          .aggregate([{ $group: { _id: "$author", count: { $sum: 1 } } }])
-          .toArray();
-        const leaderboard = entries.reduce((acc, entry) => {
-          const key = entry._id || "unknown";
-          acc[key] = entry.count;
+        const leaderboard = store.knowledge.reduce((acc, item) => {
+          const key = item.author || "unknown";
+          acc[key] = (acc[key] || 0) + 1;
           return acc;
         }, {});
         sendJson(res, 200, leaderboard);
@@ -346,6 +367,7 @@ const startServer = async () => {
       }
 
       const item = {
+        id: generateId(),
         title,
         description,
         author,
@@ -355,12 +377,13 @@ const startServer = async () => {
         region,
         type,
         status: "Pending Validation",
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
       };
 
       try {
-        const result = await knowledgeCollection.insertOne(item);
-        const saved = serializeKnowledge({ _id: result.insertedId, ...item });
+        store.knowledge.push(item);
+        await saveStore(store);
+        const saved = serializeKnowledge(item);
         sendJson(res, 201, { message: "Knowledge submitted", item: saved });
       } catch (error) {
         sendJson(res, 500, { error: "Failed to submit knowledge" });
@@ -371,10 +394,7 @@ const startServer = async () => {
 
     if (req.method === "PUT" && req.url.startsWith("/api/validate/")) {
       const id = req.url.split("/").pop();
-      let objectId = null;
-      try {
-        objectId = new ObjectId(id);
-      } catch {
+      if (!id) {
         sendJson(res, 400, { error: "Invalid knowledge id" });
         return;
       }
@@ -402,26 +422,19 @@ const startServer = async () => {
       }
 
       try {
-        const result = await knowledgeCollection.findOneAndUpdate(
-          { _id: objectId },
-          {
-            $set: {
-              status: decision,
-              validatedBy: validator,
-              validatedAt: new Date(),
-            },
-          },
-          { returnDocument: "after" }
-        );
-
-        if (!result.value) {
+        const target = store.knowledge.find((item) => item.id === id);
+        if (!target) {
           sendJson(res, 404, { error: "Knowledge item not found" });
           return;
         }
 
+        target.status = decision;
+        target.validatedBy = validator;
+        target.validatedAt = new Date().toISOString();
+        await saveStore(store);
         sendJson(res, 200, {
           message: "Validation updated",
-          item: serializeKnowledge(result.value),
+          item: serializeKnowledge(target),
         });
       } catch (error) {
         sendJson(res, 500, { error: "Failed to update validation" });

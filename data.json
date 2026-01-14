@@ -20,6 +20,24 @@
       "role": "Admin",
       "status": "Approved",
       "createdAt": "2026-01-14T11:21:16.552Z"
+    },
+    {
+      "username": "testuser",
+      "password": "1234",
+      "role": "Consultant",
+      "requestedRole": "Consultant",
+      "region": "Americas",
+      "status": "Pending",
+      "createdAt": "2026-01-14T11:52:40.600Z"
+    },
+    {
+      "username": "test2user",
+      "password": "1234",
+      "role": "Consultant",
+      "requestedRole": "KnowledgeChampion",
+      "region": "Americas",
+      "status": "Pending",
+      "createdAt": "2026-01-14T11:53:38.923Z"
     }
   ],
   "knowledge": [
@@ -50,8 +68,10 @@
       "project": "Orion",
       "region": "Global",
       "type": "Template",
-      "status": "Pending Validation",
-      "createdAt": "2026-01-14T11:21:53.117Z"
+      "status": "Approved",
+      "createdAt": "2026-01-14T11:21:53.117Z",
+      "validatedBy": "champion1",
+      "validatedAt": "2026-01-14T11:48:10.690Z"
     }
   ]
 }
